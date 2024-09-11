@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+// There may be some wrong with the homework document, if the macro is __USE_GNU, the program will not run. After asking Github copilot, I change it to _GNU_SOURCE, and the program runs successfully. Others also have the same problem, so I hope the teacher can check out the problem.
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
