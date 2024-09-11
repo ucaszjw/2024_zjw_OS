@@ -19,7 +19,7 @@ void* thread_assign(void* arg){
     int start = id * 1000000 / THREADS; // Calculate start index
     int end = (id + 1) * 1000000 / THREADS; // Calculate end index
     for (int i = start; i < end; i++)
-        array[i] = i;
+        array[i] = i+1;
     return NULL;
 }
 
@@ -34,9 +34,9 @@ int main(){
     for (int i = 0; i < THREADS; i++)
         pthread_join(threads[i], NULL); // Wait for threads to finish
 
-    int sum = 0;
+    long sum = 0;
     for (int i = 0; i < 1000000; i++)
         sum += array[i];
-    printf("Sum: %d\n", sum);
+    printf("Sum: %ld\n", sum);
     return 0;
 }

@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #define THREADS 4
-int sum[THREADS] = {0};
+long sum[THREADS] = {0};
 int array[1000000];
 
 typedef struct {
@@ -16,7 +16,7 @@ void* thread_sum(void* arg){
     thread_data_t *data = (thread_data_t*)arg;
     int *array = data->array;
     int id = data->id;
-    int local_sum = 0;
+    long local_sum = 0;
     int start = id * 1000000 / THREADS;
     int end = (id + 1) * 1000000 / THREADS;
     for (int i = start; i < end ; i++)
@@ -27,7 +27,7 @@ void* thread_sum(void* arg){
 
 int main(){    
     for (int i = 0; i < 1000000; i++)
-        array[i] = i;
+        array[i] = i+1;
 
     struct timespec start, end;
     pthread_t threads[THREADS];
@@ -41,11 +41,11 @@ int main(){
     for (int i = 0; i < THREADS; i++)
         pthread_join(threads[i], NULL);
 
-    int total_sum = 0;
+    long total_sum = 0;
     for (int i = 0; i < THREADS; i++)
         total_sum += sum[i];
     clock_gettime(CLOCK_MONOTONIC, &end);
-    printf("Sum: %d\n", total_sum);
+    printf("Sum: %ld\n", total_sum);
     printf("Time: %ld ns\n", (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec));
     return 0;
 }
