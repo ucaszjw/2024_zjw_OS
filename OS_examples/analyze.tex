@@ -41,6 +41,7 @@
 \usepackage{scribe} % Scribe 模板
 \usepackage{diagbox} % 表格斜线
 \usepackage{listings} % 插入代码
+\usepackage{hyperref} % 超链接
 \usetikzlibrary{automata} % 引入automata库
 \usetikzlibrary{shapes,arrows,positioning,chains} % 引入positioning库
 % ------------------------------------------------------------------------
@@ -309,33 +310,99 @@
 
 \section{第零部分：初识xv6}
 
-\subsubsection{基础题}
+\subsection{基础题}
 
 \begin{enumerate}
     \item 安装相应工具链，在 qemu 中运行 xv6。并在操作系统中运行 ls 命令。
-    \item 阅读 ls.c 。请回答: 代码中的 read() 函数和 printf() 函数哪个是系统调用?它们的函数声明在哪里，函数定义在哪里?
     
-    read()是系统调用，函数声明在user/user.h中，定义在user.pl中，其中有一段内联汇编代码，将sys\_read()系统调用的系统调用号送给a7，然后调用ecall指令，进入内核态执行系统调用。printf()不是系统调用，函数声明在user/user.h中，定义在user/printf.c中。
+    我使用的是MacBook，在qemu中运行xv6需要在终端中依次输入以下命令：
+
+    \begin{lstlisting}[language=bash]
+      brew tap riscv/riscv # 添加riscv工具链
+      brew install riscv-tools qemu # 安装riscv工具链和qemu
+      git clone https://github.com/mit-pdos/xv6-riscv.git
+      cd xv6-riscv
+      make # 编译xv6
+      make qemu # 在qemu中运行xv6
+    \end{lstlisting}
+
+    现场演示make与ls命令。
+
+    \item 阅读 ls.c 。请回答: 代码中的 \texttt{read()} 函数和 \texttt{printf()} 函数哪个是系统调用?它们的函数声明在哪里，函数定义在哪里?
+    
+    \texttt{read()}是系统调用，函数声明在user/user.h中：
+    
+    \begin{lstlisting}[language=C]
+      // system calls
+      int read(int, void*, int);
+    \end{lstlisting}
+    
+    定义在user/usys.pl中，它定义了一个\texttt{entry}子程序，并且依次为多个系统调用生成相应的汇编代码（这里只展示了\texttt{read}）：
+
+    \begin{lstlisting}[language=perl]
+      sub entry {
+        my $name = shift;
+        print ".global $name\n"; # 定义一个全局符号，以便其他文件可以访问该系统调用
+        print "${name}:\n"; # 定义一个标签，以便其他文件可以调用该系统调用
+        print " li a7, SYS_${name}\n"; # 将系统调用号送给a7
+        print " ecall\n"; # 进入内核态发起系统调用
+        print " ret\n"; # 返回至调用点
+      }
+
+      entry("read"); # 生成read系统调用的汇编代码
+    \end{lstlisting}
+
+    所生成的汇编代码在user/usys.S中：
+
+    \begin{lstlisting}[language=s]
+      .global read
+      read:
+       li a7, SYS_read
+       ecall
+       ret
+    \end{lstlisting}    
+
+    \texttt{printf()}不是系统调用，函数声明在user/user.h中，定义在user/printf.c中。
+
+    声明如下：
+
+    \begin{lstlisting}[language=C]
+      // ulib.c
+      void printf(const char*, ...) __attribute__ ((format (printf, 1, 2))); // __attribute__ ((format (printf, 1, 2))) 用于指定函数的格式属性。它让编译器在编译时检查 printf 函数的调用，确保传入的格式字符串和参数类型匹配
+    \end{lstlisting}
+
+    定义就不复制过来了。
+
     \item 阅读 usys.S ，查阅 RISC-V 相关知识，请问 ecall 指令的功能是什么?(如果找不到usys.S ，请自我反思一下，不要阅读静态代码)
     
-    ecall指令是RISC-V中的一个特权指令，用于从用户态切换到内核态，触发异常处理程序，执行系统调用。a7寄存器中存放系统调用号，a0-a6寄存器中存放系统调用的参数。
+    usys.S是由usys.pl生成的！如果不进行编译，usys.S自然找不到。在Makefile中，生成usys.S的代码如下：
+
+    \begin{lstlisting}[language=make]
+      $U/usys.S : $U/usys.pl
+          perl $U/usys.pl > $U/usys.S
+    \end{lstlisting}
+
+    ecall指令是在RISCV中被定义为环境调用指令，用于向系统发起一次系统调用。当执行到ecall指令时，根据a7寄存器的值来确定系统调用的类型，从用户态切换到内核态，执行对应的系统调用，然后返回继续执行用户程序。
 \end{enumerate}
 
-\subsubsection{进阶题}
+\subsection{进阶题}
 
 \noindent
-阅读 xv6 项目相关的 Makefile 文件、 mkfs.c 文件和链接器相关文件，分析 xv6 把内核和 用戶态程序编译链接的整个过程。并思考一个问题，xv6运行的时候，ls 可以看到里面有一 个 README 文件，我在 xv6 操作系统把它删除，为什么本地项目的 README 文件仍存在 (反之如此)?
+阅读 xv6 项目相关的 Makefile 文件、mkfs.c 文件和链接器相关文件，分析 xv6 把内核和用户态程序编译链接的整个过程。并思考一个问题，xv6运行的时候，ls 可以看到里面有一个 README 文件，我在 xv6 操作系统把它删除，为什么本地项目的 README 文件仍存在 (反之如此)?
 
 \vspace{1em}
 
-xv6的Makefile文件中定义了一系列的变量，包括编译器、编译选项、链接器等。在编译xv6时，首先编译bootblock，然后编译kernel，最后编译用户态程序。编译用户态程序时，首先编译mkfs，然后编译init，最后编译其他用户态程序。编译用户态程序时，需要链接器将用户态程序和内核链接在一起，生成ELF文件。在编译xv6时，会生成一个文件系统的镜像文件，包括bootblock、kernel、用户态程序等。在运行xv6时，会将这个镜像文件加载到内存中，然后运行bootblock，bootblock会加载kernel，kernel会加载用户态程序。因此，xv6运行的时候，ls可以看到里面有一个README文件，如果在xv6操作系统中删除README文件，本地项目的README文件仍然存在，是因为本地项目的README文件和xv6的文件系统镜像文件是两个不同的文件，删除xv6的文件系统镜像文件中的README文件并不会影响本地项目的README文件。
+xv6的Makefile文件中定义了编译xv6的规则，先指定\texttt{OBJS}，即所有的目标文件，再指定编译器(\texttt{CC})、汇编器(\texttt{AS})、链接器(\texttt{LD})、编译选项(\texttt{CFLAGS})等，再链接内核目标、编译用户程序、最后使用mkfs生成文件系统镜像，包括 README 文件和用户程序。
 
+在运行xv6时，会将镜像文件加载到内存中，因此，xv6运行的时候，ls可以看到里面有一个README文件，如果在xv6操作系统中删除README文件，本地项目的README文件仍然存在，是因为本地项目的README文件和xv6的文件系统镜像文件是两个不同的文件，删除xv6的文件系统镜像文件中的README文件并不会影响本地项目的README文件。
+
+\newpage
 \section{第四部分: 进程的运行}
 
-\subsubsection{基础题}
+\subsection{基础题}
 
 \begin{enumerate}
-    \item proc.c 中 uchar initcode[] 的诡异的二进制数据的含义是什么?为什么 userinit() 函数要把它拷⻉到 usr page 中?它和 user/initCode.S 有什么联系?
+    \item proc.c 中 \texttt{uchar initcode[]} 的诡异的二进制数据的含义是什么?为什么 \texttt{userinit()} 函数要把它拷贝到 user page 中?它和 user/initCode.S 有什么联系?
     
     \begin{lstlisting}[language=C]
         // a user program that calls exec("/init")
@@ -352,9 +419,9 @@ xv6的Makefile文件中定义了一系列的变量，包括编译器、编译选
         };        
     \end{lstlisting}
     
-    这一些二进制数据实际上拼起来是一个用户程序，调用exec("/init")。
+    这一些二进制数据实际上拼起来是一个用户程序，调用\texttt{exec("/init")}。
     
-    userinit()函数将这个用户程序拷贝到用户态的内存中，然后调用exec()函数执行这个用户程序，是为了在系统启动时执行一个初始的用户程序，从而进入用户模式。
+    \texttt{userinit()}函数将这个用户程序拷贝到用户页中，意在用户态执行此进程，并实现进程隔离。
     
     下面展示出userinit()函数的代码：
 
@@ -386,7 +453,7 @@ xv6的Makefile文件中定义了一系列的变量，包括编译器、编译选
         }
     \end{lstlisting}
 
-    initcode[]和user/initCode.S是一样的，都是一个用户程序，调用exec("/init")。
+    \texttt{initcode[]}和user/initCode.S是一样的，都是一个用户程序，调用\texttt{exec("/init")}。
 
     \item 第一个进程启动后在用户态执行的程序是什么?这个程序执行了哪个系统调用?
     
@@ -457,22 +524,35 @@ xv6的Makefile文件中定义了一系列的变量，包括编译器、编译选
 
     \item 在 exec.c 的 exec() 中，用到的 struct elfhdr 数据结构，其中 magic ， phnum，phoff 等字段的作用是什么?以及 struct proghdr 的数据结构，其中 vaddr，memsz，filesz 等字段的作用是什么?
     
-    struct elfhdr 数据结构是ELF文件头，用于描述ELF文件的基本信息，magic字段用于标识ELF文件，phnum字段表示ELF文件中的程序头的数量，phoff字段表示ELF文件中的程序头表的偏移量。
+    struct elfhdr 数据结构是ELF文件头，用于描述ELF文件的基本信息，magic字段用于标识ELF文件，即所有ELF文件的开头都是0x464C457F（"\textbackslash x7FELF"的小端序），phnum字段表示ELF文件中的程序头的数量，phoff字段表示ELF文件中的程序头表的偏移量。
 
     struct proghdr 数据结构是程序头，用于描述ELF文件中的程序段的信息，vaddr字段表示程序段的虚拟地址，memsz字段表示程序段在内存中的大小，filesz字段表示程序段在文件中的大小。
 
     \item 在 exec() 中，如何确定并设置待运行的程序的 PC 值和栈指针?
     
-    exec() 函数会读取 ELF 文件头，以获取程序入口点的地址，然后将这个地址设置为新进程的 PC 值。
+    首先需要弄清楚exec()函数的两个参数意义：
 
-    在加载完程序段后，exec() 函数会为用户栈分配内存，并将命令行参数拷贝到栈中。然后，计算并设置栈指针（SP）。计算过程如下：
+    \begin{lstlisting}[language=C]
+      int
+      exec(char *path, char **argv)
+    \end{lstlisting}
+    
+    \texttt{path}是要执行的程序的路径，\texttt{argv}是命令行参数，于是\texttt{exec()}函数的主要工作是将\texttt{path}指定的程序加载到内存中并替换当前进程的地址空间，然后开始执行新程序。
+    
+    \texttt{exec()} 函数会读取 ELF 文件头，以获取程序入口点的地址，然后将这个地址设置为新进程的 PC 值，即：
+
+    \begin{lstlisting}[language=C]
+      p->trapframe->epc = elf.entry;  // initial program counter = main
+    \end{lstlisting}
+
+    在加载完程序段后，\texttt{exec()} 函数会为用户栈分配内存，并将命令行参数拷贝到栈中。然后，计算并设置栈指针（SP）。计算过程如下：
 
     \begin{lstlisting}[language=C]
         // Push argument strings, prepare rest of stack in ustack.
         for(argc = 0; argv[argc]; argc++) {
           if(argc >= MAXARG)
             goto bad;
-          sp -= strlen(argv[argc]) + 1;
+          sp -= strlen(argv[argc]) + 1; // including '\0'
           sp -= sp % 16; // riscv sp must be 16-byte aligned
           if(sp < stackbase)
             goto bad;
@@ -483,12 +563,14 @@ xv6的Makefile文件中定义了一系列的变量，包括编译器、编译选
         ustack[argc] = 0;
         
         // push the array of argv[] pointers.
-        sp -= (argc+1) * sizeof(uint64);
+        sp -= (argc+1) * sizeof(uint64); 
         sp -= sp % 16;
         if(sp < stackbase)
           goto bad;
         if(copyout(pagetable, sp, (char *)ustack, (argc+1)*sizeof(uint64)) < 0)
           goto bad;
+
+        p->trapframe->sp = sp; // initial stack pointer
     \end{lstlisting}
 
     \item exec() 执行完以后，返回的地址是什么?为什么?
@@ -505,15 +587,32 @@ xv6的Makefile文件中定义了一系列的变量，包括编译器、编译选
     实际上，子进程是由操作系统调度器调度的，当子进程创建后，fork()函数会将子进程的状态设置为RUNNABLE，然后由操作系统调度器调度，将子进程从RUNNABLE状态转换到RUNNING状态。
 
     \item 对于父进程和子进程， fork() 返回的 pid 相同么?为什么?
-    
-    父进程和子进程是两个不同的进程，pid当然不同。
+  
+    父进程和子进程是两个不同的进程，pid当然不同。具体关注代码来说，fork()函数的返回值是allocproc()函数分配的新进程的pid，而这个pid是从1开始递增的，所以父进程和子进程的pid是不同的。代码如下：
+
+    \begin{lstlisting}[language=C]
+      int nextpid = 1;
+
+      int
+      allocpid()
+      {
+        int pid;
+        
+        acquire(&pid_lock);
+        pid = nextpid;
+        nextpid = nextpid + 1;
+        release(&pid_lock);
+
+        return pid;
+      }
+    \end{lstlisting}
 
     \item wait 系统调用的功能?
     
     wait()系统调用用于等待子进程退出，如果子进程已经退出，则wait()会立即返回，否则wait()会阻塞当前进程，直到子进程退出。
 \end{enumerate}
 
-\subsubsection{进阶题}
+\subsection{进阶题}
 
 \noindent
 请结合代码详细分析 Linux 中 elf 文件格式(利用 readelf 命令)，以及链接和加载的机制。
@@ -557,14 +656,6 @@ xv6的Makefile文件中定义了一系列的变量，包括编译器、编译选
       uint64 memsz;
       uint64 align;
     };
-    
-    // Values for Proghdr type
-    #define ELF_PROG_LOAD           1
-    
-    // Flag bits for Proghdr flags
-    #define ELF_PROG_FLAG_EXEC      1
-    #define ELF_PROG_FLAG_WRITE     2
-    #define ELF_PROG_FLAG_READ      4
 \end{lstlisting}
 
 elf文件格式的示意图如下所示：
@@ -574,11 +665,64 @@ elf文件格式的示意图如下所示：
     \includegraphics[width=0.6\textwidth]{elfformat2.jpg}
 \end{figure}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.8\textwidth]{elfformat1.png}
-    \caption{ELF文件格式}
-\end{figure}
+随便写了一个汇编文件，编译之后得到可执行文件，然后使用readelf命令查看可执行文件的信息，如下所示：
+
+\begin{lstlisting}[language=bash]
+  readelf -h hello
+\end{lstlisting}
+
+输出如下：
+
+\begin{lstlisting}
+ELF Header:
+  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF64
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              EXEC (Executable file)
+  Machine:                           RISC-V
+  Version:                           0x1
+  Entry point address:               0x100e8
+  Start of program headers:          64 (bytes into file)
+  Start of section headers:          944 (bytes into file)
+  Flags:                             0x4, double-float ABI
+  Size of this header:               64 (bytes)
+  Size of program headers:           56 (bytes)
+  Number of program headers:         3
+  Size of section headers:           64 (bytes)
+  Number of section headers:         7
+  Section header string table index: 6
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash]
+  readelf -l hello
+\end{lstlisting}
+
+输出如下：
+
+\begin{lstlisting}
+  Elf file type is EXEC (Executable file)
+  Entry point 0x100e8
+  There are 3 program headers, starting at offset 64
+  
+  Program Headers:
+    Type           Offset             VirtAddr           PhysAddr
+                   FileSiz            MemSiz              Flags  Align
+    RISCV_ATTRIBUT 0x0000000000000117 0x0000000000000000 0x0000000000000000
+                   0x000000000000004c 0x0000000000000000  R      0x1
+    LOAD           0x0000000000000000 0x0000000000010000 0x0000000000010000
+                   0x000000000000010c 0x000000000000010c  R E    0x1000
+    LOAD           0x000000000000010c 0x000000000001110c 0x000000000001110c
+                   0x000000000000000b 0x000000000000000b  RW     0x1000
+  
+   Section to Segment mapping:
+    Segment Sections...
+     00     .riscv.attributes 
+     01     .text 
+     02     .data
+\end{lstlisting}
 
 链接是将多个目标文件和库文件组合成一个可执行文件的过程。链接可以分为两种类型：静态链接和动态链接。
 
@@ -586,12 +730,23 @@ elf文件格式的示意图如下所示：
 
 动态链接（Dynamic Linking）：在运行时，将库函数动态加载到内存中，并链接到可执行文件。
 
+链接的过程包括以下几个步骤：
+
+\begin{enumerate}
+  \item 符号解析：链接器需要解析所有目标文件和库文件中的符号。符号可以是变量、函数或其他标识符。链接器需要确保每个符号都有唯一的定义，并且所有引用都能找到对应的定义。
+  \item 重定位：链接器需要调整目标文件中的地址，以便它们在最终的可执行文件中正确指向。重定位包括调整代码和数据段中的地址，以反映它们在内存中的最终位置。
+  \item 合并段：链接器将多个目标文件中的相同类型的段（如代码段、数据段）合并到一个段中。这样可以减少内存碎片，并提高程序的加载效率。
+  \item 生成最终的可执行文件：链接器将所有目标文件和库文件合并，生成最终的可执行文件。这个文件包含所有代码和数据段，并且所有符号和地址都已正确解析和调整。
+\end{enumerate}
+
 加载是加载器将可执行文件从磁盘加载到内存中，并准备执行的过程。包括以下步骤：
 
-读取可执行文件头：加载器首先读取可执行文件的头部信息，以确定文件格式、入口点、段信息等。
-分配内存：根据可执行文件的段信息，加载器在内存中分配相应的空间，包括代码段、数据段、堆和栈。
-加载段：将可执行文件的各个段（如代码段、数据段）加载到分配的内存区域中。
-动态链接（如果使用动态链接）：加载器在运行时加载动态库，并解析符号表，将库函数链接到可执行文件中。
-设置入口点：加载器将程序计数器（PC）设置为可执行文件的入口点地址。
-开始执行：加载器将控制权交给可执行文件，开始执行程序。
+\begin{enumerate}
+  \item 读取可执行文件头：加载器首先读取可执行文件的头部信息，以确定文件格式、入口点、段信息等。
+  \item 分配内存：根据可执行文件的段信息，加载器在内存中分配相应的空间，包括代码段、数据段、堆和栈。
+  \item 加载段：将可执行文件的各个段（如代码段、数据段）加载到分配的内存区域中。
+  \item 动态链接（如果使用动态链接）：加载器在运行时加载动态库，并解析符号表，将库函数链接到可执行文件中。
+  \item 设置入口点：加载器将程序计数器（PC）设置为可执行文件的入口点地址。
+  \item 开始执行：加载器将控制权交给可执行文件，开始执行程序。
+\end{enumerate}
 \end{document}
