@@ -336,8 +336,7 @@
 
 \begin{enumerate}[label=(\arabic*)]
     \item 读出一个条带平均时间为$4 \times 10^{-3} + \dfrac{60}{7200 \times 2} + \dfrac{4}{200 \times 10^3} = 8.19$ms.
-    \item 当两个数据属于同一个条带时，先读取数据，无法并行写校验块，所以总时间为$2 
-    times 8.19 \times 10^{-3} + 4 \times 10^{-3} + \dfrac{60}{7200 \times 2} + \dfrac{4}{200 \times 10^3} \times 2 = 24.59$ms;
+    \item 当两个数据属于同一个条带时，先读取数据，无法并行写校验块，所以总时间为$2 \times 8.19 \times 10^{-3} + 4 \times 10^{-3} + \dfrac{60}{7200 \times 2} + \dfrac{4}{200 \times 10^3} \times 2 = 24.59$ms;
     
     当两个数据属于不同条带时，先读取数据，可以并行写校验块，所以总时间为$8.19 \times 10^{-3} + 4 \times 10^{-3} + \dfrac{60}{7200 \times 2} + \dfrac{4}{200 \times 10^3} = 16.38$ms.
 \end{enumerate}
